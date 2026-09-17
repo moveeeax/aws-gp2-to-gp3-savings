@@ -1,0 +1,17 @@
+# Built binary — anchored to repo root so it never shadows cmd/ source dirs.
+/aws-gp2-to-gp3-savings
+/dist/
+
+# Go build/test artifacts
+*.test
+*.out
+coverage.txt
+
+# Editor/OS noise
+.DS_Store
+.idea/
+.vscode/
+
+# Never ignore fixtures under testdata/ or examples/
+!testdata/**
+!examples/**

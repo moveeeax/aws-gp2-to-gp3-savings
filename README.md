@@ -1,0 +1,83 @@
+# aws-gp2-to-gp3-savings
+
+[![ci](https://github.com/moveeeax/aws-gp2-to-gp3-savings/actions/workflows/ci.yml/badge.svg)](https://github.com/moveeeax/aws-gp2-to-gp3-savings/actions/workflows/ci.yml)
+[![Go](https://img.shields.io/badge/go-1.22%2B-00ADD8?logo=go&logoColor=white)](https://go.dev)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+Scan EBS volumes for legacy **gp2** and total the monthly dollar savings of migrating them to **gp3**.
+
+gp3 costs ~20% less per provisioned GB than gp2 ($0.08 vs $0.10 /GB-month in us-east-1) and, unlike gp2, decouples IOPS from size: every gp3 volume ships with **3,000 IOPS and 125 MB/s** of baseline throughput for free. For the vast majority of volumes the migration is a live modify with no downtime and no performance loss — it just quietly stops costing more. The savings are boring per volume and significant per account.
+
+## How it works
+
+1. `DescribeVolumes` (paginated) lists every EBS volume in the region.
+2. Each volume is classified:
+   - **`MIGRATE`** — gp2 whose size-derived IOPS stay at or below gp3's free 3,000 → clean win, savings counted.
+   - **`REVIEW_IOPS`** — gp2 larger than ~1,000 GiB, where gp2's `3 IOPS/GiB` already exceeds gp3's free tier. Storage still gets cheaper (savings counted), but you may want to provision matching gp3 IOPS — flagged so it's a conscious call.
+   - **`SKIP`** — not gp2 (gp3/io1/io2/st1/sc1/standard).
+3. gp2 and gp3 are priced from a static per-region table (`size × $/GB-month`); the per-volume delta is summed.
+4. It prints a table (or `--json`) and **exits `1` when migratable gp2 volumes are found**, so it doubles as a CI/cost gate.
+
+Tests run entirely offline against an injected client interface — no live AWS calls.
+
+## Install
+
+```sh
+go install github.com/moveeeax/aws-gp2-to-gp3-savings/cmd/aws-gp2-to-gp3-savings@latest
+```
+
+Or build from source:
+
+```sh
+git clone https://github.com/moveeeax/aws-gp2-to-gp3-savings.git
+cd aws-gp2-to-gp3-savings
+go build ./cmd/aws-gp2-to-gp3-savings
+```
+
+## Usage
+
+```
+usage: aws-gp2-to-gp3-savings [--region R] [--json] [--min-savings N]
+
+  --region string       AWS region to scan (default: from env/profile)
+  --json                emit JSON instead of a table
+  --min-savings float   only fail (exit 1) when total monthly savings exceeds this USD amount
+```
+
+Credentials come from the standard AWS chain (env vars, shared config, SSO, instance role). The read-only `ec2:DescribeVolumes` permission is enough.
+
+### Table output
+
+```sh
+$ aws-gp2-to-gp3-savings --region us-east-1
+RECOMMENDATION  VOLUME_ID                TYPE  SIZE_GIB  ATTACHED             SAVINGS_$/MO
+REVIEW_IOPS     vol-0a1b2c3d4e5f60011    gp2   2000      -                    40.00
+MIGRATE         vol-0a1b2c3d4e5f60022    gp2   500       i-0abcd1234ef567890  10.00
+SKIP            vol-0a1b2c3d4e5f60033    gp3   300       i-0999aaaa8888bbbb7  0.00
+
+3 volumes, 2 gp2, 2 worth migrating — estimated savings $50.00/mo (region us-east-1 @ gp2 $0.1000 vs gp3 $0.0800 /GB)
+```
+
+### JSON output
+
+```sh
+$ aws-gp2-to-gp3-savings --region us-east-1 --json
+```
+
+See [`examples/sample-report.json`](examples/sample-report.json) for the shape.
+
+## Pricing notes
+
+Prices are storage-only ($/GB-month) from a small static table, defaulting to the us-east-1 reference where a region isn't listed. The ~20% gp2→gp3 delta holds across commercial regions even where the absolute price is higher. gp3 IOPS/throughput above the free tier are billed separately and are **not** subtracted from the reported savings — so the numbers are a conservative floor: any volume the tool recommends migrating for free stays free.
+
+## Exit codes
+
+| Code | Meaning |
+|------|---------|
+| `0`  | No migratable gp2 volumes (or total savings ≤ `--min-savings`) |
+| `1`  | Migratable gp2 volumes found — CI gate |
+| `2`  | Runtime error (credentials, region, AWS API) |
+
+## License
+
+MIT — see [LICENSE](LICENSE).

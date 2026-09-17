@@ -1,0 +1,47 @@
+{
+  "region": "us-east-1",
+  "volumes": [
+    {
+      "volume_id": "vol-0a1b2c3d4e5f60011",
+      "availability_zone": "us-east-1a",
+      "volume_type": "gp2",
+      "size_gib": 2000,
+      "gp2_baseline_iops": 6000,
+      "state": "available",
+      "monthly_gp2_usd": 200,
+      "monthly_gp3_usd": 160,
+      "monthly_savings_usd": 40,
+      "recommendation": "REVIEW_IOPS"
+    },
+    {
+      "volume_id": "vol-0a1b2c3d4e5f60022",
+      "availability_zone": "us-east-1b",
+      "volume_type": "gp2",
+      "size_gib": 500,
+      "gp2_baseline_iops": 1500,
+      "state": "in-use",
+      "attached_to": "i-0abcd1234ef567890",
+      "monthly_gp2_usd": 50,
+      "monthly_gp3_usd": 40,
+      "monthly_savings_usd": 10,
+      "recommendation": "MIGRATE"
+    },
+    {
+      "volume_id": "vol-0a1b2c3d4e5f60033",
+      "availability_zone": "us-east-1a",
+      "volume_type": "gp3",
+      "size_gib": 300,
+      "state": "in-use",
+      "attached_to": "i-0999aaaa8888bbbb7",
+      "monthly_gp2_usd": 0,
+      "monthly_gp3_usd": 0,
+      "monthly_savings_usd": 0,
+      "recommendation": "SKIP"
+    }
+  ],
+  "gp2_count": 2,
+  "migrate_count": 2,
+  "total_monthly_savings_usd": 50,
+  "gp2_per_gb_usd": 0.1,
+  "gp3_per_gb_usd": 0.08
+}
