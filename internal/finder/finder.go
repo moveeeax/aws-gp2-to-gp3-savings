@@ -95,8 +95,10 @@ type Volume struct {
 }
 
 // migratable reports whether a volume's savings should be counted in the total.
+// Only RecMigrate qualifies: a RecReviewIOPS volume may need paid gp3 IOPS to
+// match its gp2 baseline, so its storage delta is not a guaranteed saving.
 func (v Volume) migratable() bool {
-	return v.Recommendation == RecMigrate || v.Recommendation == RecReviewIOPS
+	return v.Recommendation == RecMigrate
 }
 
 // EC2API is the slice of the EC2 client the finder needs. Injecting it keeps
@@ -112,8 +114,13 @@ type Report struct {
 	GP2Count     int      `json:"gp2_count"`
 	MigrateCount int      `json:"migrate_count"`
 	TotalSavings float64  `json:"total_monthly_savings_usd"`
-	GP2PerGBUSD  float64  `json:"gp2_per_gb_usd"`
-	GP3PerGBUSD  float64  `json:"gp3_per_gb_usd"`
+	// ReviewIOPSCount and ReviewIOPSStorageDelta describe REVIEW_IOPS volumes,
+	// kept out of TotalSavings. The delta is storage-only (size × (gp2−gp3)),
+	// before any extra gp3 IOPS, so it is an upper bound, not a saving.
+	ReviewIOPSCount        int     `json:"review_iops_count"`
+	ReviewIOPSStorageDelta float64 `json:"review_iops_storage_delta_usd"`
+	GP2PerGBUSD            float64 `json:"gp2_per_gb_usd"`
+	GP3PerGBUSD            float64 `json:"gp3_per_gb_usd"`
 }
 
 // Scan enumerates every EBS volume in the region, classifies each, and totals
@@ -145,9 +152,13 @@ func Scan(ctx context.Context, client EC2API, region string) (*Report, error) {
 		if v.Type == string(ec2types.VolumeTypeGp2) {
 			rep.GP2Count++
 		}
-		if v.migratable() {
+		switch {
+		case v.migratable():
 			rep.MigrateCount++
 			rep.TotalSavings += v.MonthlySavings
+		case v.Recommendation == RecReviewIOPS:
+			rep.ReviewIOPSCount++
+			rep.ReviewIOPSStorageDelta += v.MonthlySavings
 		}
 	}
 
@@ -194,7 +205,8 @@ func classify(v ec2types.Volume, gp2GB, gp3GB float64) Volume {
 	if vol.GP2IOPS > gp3FreeIOPS {
 		// gp2 already derives more IOPS from its size than gp3 hands out free.
 		// Storage still gets cheaper, but flag it so the operator can decide
-		// whether to provision matching gp3 IOPS.
+		// whether to provision matching gp3 IOPS. MonthlySavings here is the
+		// storage-only delta and is not added to Report.TotalSavings.
 		vol.Recommendation = RecReviewIOPS
 	} else {
 		vol.Recommendation = RecMigrate
