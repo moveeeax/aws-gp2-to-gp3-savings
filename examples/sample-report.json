@@ -40,8 +40,10 @@
     }
   ],
   "gp2_count": 2,
-  "migrate_count": 2,
-  "total_monthly_savings_usd": 50,
+  "migrate_count": 1,
+  "total_monthly_savings_usd": 10,
+  "review_iops_count": 1,
+  "review_iops_storage_delta_usd": 40,
   "gp2_per_gb_usd": 0.1,
   "gp3_per_gb_usd": 0.08
 }

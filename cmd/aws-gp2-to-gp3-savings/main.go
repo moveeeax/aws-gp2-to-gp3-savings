@@ -4,7 +4,7 @@
 // Exit codes:
 //
 //	0  no gp2 volumes worth migrating
-//	1  migratable gp2 volumes found (CI gate)
+//	1  MIGRATE gp2 volumes found (CI gate); REVIEW_IOPS alone does not fail
 //	2  runtime error (AWS/credentials/flags)
 package main
 
