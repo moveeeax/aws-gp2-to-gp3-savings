@@ -31,5 +31,9 @@ func (r *Report) WriteTable(w io.Writer) error {
 	}
 	fmt.Fprintf(w, "\n%d volumes, %d gp2, %d worth migrating — estimated savings $%.2f/mo (region %s @ gp2 $%.4f vs gp3 $%.4f /GB)\n",
 		len(r.Volumes), r.GP2Count, r.MigrateCount, r.TotalSavings, r.Region, r.GP2PerGBUSD, r.GP3PerGBUSD)
+	if r.ReviewIOPSCount > 0 {
+		fmt.Fprintf(w, "%d need IOPS review — storage delta up to $%.2f/mo before extra gp3 IOPS, not included above\n",
+			r.ReviewIOPSCount, r.ReviewIOPSStorageDelta)
+	}
 	return nil
 }

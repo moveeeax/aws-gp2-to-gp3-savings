@@ -149,13 +149,23 @@ func TestScanTotalsAndOrderingAndPagination(t *testing.T) {
 	if rep.GP2Count != 2 {
 		t.Fatalf("gp2 count = %d, want 2", rep.GP2Count)
 	}
-	if rep.MigrateCount != 2 {
-		t.Fatalf("migrate count = %d, want 2", rep.MigrateCount)
+	// REVIEW_IOPS volumes are not free savings: matching their gp2 IOPS on gp3
+	// costs extra, so they must stay out of the conservative total and the
+	// migrate count, and be reported separately instead.
+	if rep.MigrateCount != 1 {
+		t.Fatalf("migrate count = %d, want 1 (REVIEW_IOPS must not count)", rep.MigrateCount)
 	}
 	gp2GB, gp3GB := Prices("us-east-1")
-	want := 100*(gp2GB-gp3GB) + 2000*(gp2GB-gp3GB)
+	want := 100 * (gp2GB - gp3GB)
 	if diff := rep.TotalSavings - want; diff > 1e-9 || diff < -1e-9 {
-		t.Fatalf("total = %.6f, want %.6f", rep.TotalSavings, want)
+		t.Fatalf("total = %.6f, want %.6f (MIGRATE only)", rep.TotalSavings, want)
+	}
+	if rep.ReviewIOPSCount != 1 {
+		t.Fatalf("review count = %d, want 1", rep.ReviewIOPSCount)
+	}
+	wantReview := 2000 * (gp2GB - gp3GB)
+	if diff := rep.ReviewIOPSStorageDelta - wantReview; diff > 1e-9 || diff < -1e-9 {
+		t.Fatalf("review storage delta = %.6f, want %.6f", rep.ReviewIOPSStorageDelta, wantReview)
 	}
 	// Biggest savings first.
 	if rep.Volumes[0].VolumeID != "vol-big" {
@@ -164,6 +174,25 @@ func TestScanTotalsAndOrderingAndPagination(t *testing.T) {
 	// gp3 (zero savings) sorts last.
 	if rep.Volumes[2].VolumeID != "vol-gp3" {
 		t.Fatalf("skip volume should sort last: %s", rep.Volumes[2].VolumeID)
+	}
+}
+
+func TestScanReviewOnlyHasNoFreeSavings(t *testing.T) {
+	m := &mockEC2{vols: []ec2types.Volume{vol("vol-big", "gp2", "us-east-1a", 2000, "")}}
+	rep, err := Scan(context.Background(), m, "us-east-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep.MigrateCount != 0 || rep.TotalSavings != 0 {
+		t.Fatalf("review-only scan counted as free savings: count=%d total=%.2f",
+			rep.MigrateCount, rep.TotalSavings)
+	}
+	var buf bytes.Buffer
+	if err := rep.WriteTable(&buf); err != nil {
+		t.Fatal(err)
+	}
+	if out := buf.String(); !strings.Contains(out, "1 need IOPS review") {
+		t.Fatalf("table summary does not mention REVIEW_IOPS volumes:\n%s", out)
 	}
 }
 
