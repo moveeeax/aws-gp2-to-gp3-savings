@@ -82,3 +82,7 @@ Prices are storage-only ($/GB-month) from a small static table, defaulting to th
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+---
+
+**Archived on 2026-11-05.** AWS Compute Optimizer gives free gp2-to-gp3 recommendations with savings, using real IOPS/throughput metrics this tool does not model. The only angles left are unattached volumes (Compute Optimizer skips them) and a no-opt-in, single-call CI gate.
